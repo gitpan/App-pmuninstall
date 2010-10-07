@@ -1,7 +1,7 @@
 package App::pmuninstall;
 use strict;
 use warnings;
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 
 1;
 __END__
@@ -48,6 +48,18 @@ Check dependencies
 Show help message
 
   $ pm-uninstall -h
+
+=item -l, --local-lib
+
+Additional module path
+
+  $ pm-uninstall -l extlib App::pmuninstall
+
+=item -L, --local-lib-contained
+
+Additional module path (don't include non-core modules)
+
+  $ pm-uninstall -L extlib App::pmuninstall
 
 =head1 AUTHOR
 
