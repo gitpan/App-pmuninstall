@@ -1,7 +1,7 @@
 package App::pmuninstall;
 use strict;
 use warnings;
-our $VERSION = "0.08";
+our $VERSION = "0.09";
 
 1;
 __END__
@@ -68,6 +68,8 @@ Additional module path
 Additional module path (don't include non-core modules)
 
   $ pm-uninstall -L extlib App::pmuninstall
+
+=back
 
 =head1 AUTHOR
 
