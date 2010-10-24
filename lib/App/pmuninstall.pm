@@ -1,7 +1,7 @@
 package App::pmuninstall;
 use strict;
 use warnings;
-our $VERSION = "0.06";
+our $VERSION = "0.07";
 
 1;
 __END__
@@ -48,6 +48,12 @@ Check dependencies
 Show help message
 
   $ pm-uninstall -h
+
+=item -V, --version
+
+Show version
+
+  $ pm-uninstall -V
 
 =item -l, --local-lib
 

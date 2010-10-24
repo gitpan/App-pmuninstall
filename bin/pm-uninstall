@@ -11,11 +11,15 @@ use ExtUtils::MakeMaker;
 use LWP::Simple;
 use YAML;
 use CPAN::DistnameInfo;
+use Module::CoreList;
+
+use App::pmuninstall;
+
+my $perl_version = version->new($^V)->numify;
 
 my $base_url = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
 my $cpanmetadb = 'http://cpanmetadb.appspot.com/v1.0/package';
-
-our $VERSION = "0.04";
+my $uninstalled = 0;
 
 my $opt = +{
     check_deps => 1,
@@ -26,6 +30,7 @@ GetOptions(
     'c|checkdeps!'            => \$opt->{check_deps},
     'n|no-checkdeps!'         => sub { $opt->{check_deps} = 0 },
     'h|help!'                 => \$opt->{help},
+    'V|version!'              => \$opt->{version},
     'l|local-lib=s'           => \$opt->{local_lib},
     'L|local-lib-contained=s' => sub {
         $opt->{local_lib}      = $_[1];
@@ -33,7 +38,14 @@ GetOptions(
     },
 );
 
-pod2usage 1 if $opt->{help} or !@ARGV;
+pod2usage 1 if $opt->{help};
+
+if ($opt->{version}) {
+    warn "App::pmuninstall v$App::pmuninstall::VERSION\n"; 
+    exit;
+}
+
+pod2usage 1 if !@ARGV;
 
 main(@ARGV);
 exit;
@@ -47,19 +59,31 @@ sub main {
 
     for my $module (@modules) {
         my($packlist, $dist, $vname) = find_packlist($module);
-        unless ($packlist) {
-            warn "Module $module not installed\n";
+
+        unless ($dist) {
+            warn "$module is not found.\n";
             next;
         }
 
-        if ($opt->{force} or is_core_module($packlist)) {
-            next if lc(prompt("$dist is Core Module. Are you sure process?", 'n')) eq 'n';
+        if (is_core_module($dist)) {
+            warn "$dist is Core Module!! Can't be uninstall.\n";
+            next;
+        }
+
+        unless ($packlist) {
+            warn "$module is not installed.\n";
+            next;
         }
 
         if ($opt->{force} or ask_permission($module, $dist, $vname, $packlist, $opt->{local_lib})) {
             uninstall_from_packlist($packlist, $opt->{local_lib});
-            warn "Module $module successfully uninstalled.\n";
+            warn "$module is successfully uninstalled.\n\n";
+            $uninstalled++;
         }
+    }
+
+    if ($uninstalled) {
+        warn "You may want to rebuild man(1) entires. Try `mandb -c` if needed\n"
     }
 }
 
@@ -92,7 +116,7 @@ sub ask_permission {
     warn "$module is included in the distribution $dist and contains:\n\n";
 
     for (fixup_packilist($packlist, $local_lib_base)) {
-        warn " $_";
+        warn "  $_";
     }
     warn "\n";
 
@@ -127,19 +151,12 @@ sub find_packlist {
     my $info = CPAN::DistnameInfo->new($meta->{distfile});
 
     my $pl2 = locate_pack($info->dist);
-    return ($pl2, $info->dist, $info->distvname) if $pl2;
-
-    return;
+    return ($pl2, $info->dist, $info->distvname);
 }
 
 sub is_core_module {
-    my ($packlist) = @_;
-    for my $lib (@{[$Config{installprivlib}, $Config{installarchlib}]}) {
-        next unless $lib;
-        $lib = quotemeta $lib;
-        return 1 if $packlist =~ /^$lib/;
-    }
-    return;
+    my ($dist) = @_;
+    exists $Module::CoreList::version{$perl_version}{$dist} ? 1 : 0;
 }
 
 sub locate_pack {
@@ -252,6 +269,7 @@ __END__
       -f,--force                    Uninstalls without prompts
       -c,--checkdeps                Check dependencies
       -h,--help                     This help message
+      -V,--version                  Show version
       -l,--local-lib                Additional module path
       -L,--local-lib-contained      Additional module path (don't include non-core modules)
 
