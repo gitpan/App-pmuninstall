@@ -1,7 +1,7 @@
 package App::pmuninstall;
 use strict;
 use warnings;
-our $VERSION = "0.07";
+our $VERSION = "0.08";
 
 1;
 __END__
@@ -14,6 +14,8 @@ App::pmuninstall - Uninstall modules
 
 App::pmuninstall is Fast module uninstaller.
 delete files from B<.packlist>.
+
+App:: cpanminus and, App:: cpanoutdated with a high affinity.
 
 =head1 SYNOPSIS
 
@@ -35,7 +37,7 @@ Uninstalls without prompts
 
 Turns on chatty output
 
-  $ pm-uninstall -v CGI
+  $ pm-uninstall -v App::cpnaminus
 
 =item -c, --checkdeps
 
