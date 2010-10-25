@@ -1,7 +1,7 @@
 package App::pmuninstall;
 use strict;
 use warnings;
-our $VERSION = "0.09";
+our $VERSION = "0.10";
 
 1;
 __END__
@@ -41,9 +41,15 @@ Turns on chatty output
 
 =item -c, --checkdeps
 
-Check dependencies
+Check dependencies ( default on )
 
   $ pm-uninstall -c Plack
+
+=item -n, --no-checkdeps
+
+Not check dependencies
+
+  $ pm-uninstall -n LWP
 
 =item -h, --help
 
