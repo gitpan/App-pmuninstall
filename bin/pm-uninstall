@@ -10,6 +10,7 @@ use Config;
 use ExtUtils::MakeMaker;
 use LWP::Simple;
 use YAML;
+use YAML::Loader; # workaround for -L
 use CPAN::DistnameInfo;
 use Module::CoreList;
 
@@ -58,15 +59,15 @@ sub main {
     }
 
     for my $module (@modules) {
+        if (is_core_module($module)) {
+            warn "$module is Core Module!! Can't be uninstall.\n";
+            next;
+        }
+
         my($packlist, $dist, $vname) = find_packlist($module);
 
         unless ($dist) {
             warn "$module is not found.\n";
-            next;
-        }
-
-        if (is_core_module($dist)) {
-            warn "$dist is Core Module!! Can't be uninstall.\n";
             next;
         }
 
@@ -108,8 +109,9 @@ sub ask_permission {
     if ($opt->{check_deps}) {
         $vname = vname_for($module);
         warn "Checking modules depending on $vname\n" if $opt->{verbose};
+        warn "-> Getting from $base_url$vname\n" if $opt->{verbose};
         my $content = get("$base_url$vname");
-        for my $dep ($content =~ m|<li>([a-zA-Z0-9_::]+)|smg) {
+        for my $dep ($content =~ m|<li>([a-zA-Z0-9_:-]+)|smg) {
             $dep =~ s/^\s+|\s+$//smg;
             $dep =~ s/\-[^\-]+$//; # version
             next if $seen{$dep}++;
