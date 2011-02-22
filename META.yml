@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               App-pmuninstall
-version:            0.15
+version:            0.16
 abstract:           Uninstall modules.
 author:  []
 license:            perl
