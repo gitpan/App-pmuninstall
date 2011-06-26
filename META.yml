@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               App-pmuninstall
-version:            0.17
+version:            0.18
 abstract:           Uninstall modules.
 author:  []
 license:            perl
@@ -13,8 +13,8 @@ requires:
     CPAN::DistnameInfo:   0
     ExtUtils::Install:    1.43
     ExtUtils::MakeMaker:  6.31
+    HTTP::Tiny:           0.012
     local::lib:           1.006007
-    LWP::Simple:          0
     Module::CoreList:     0
     version:              0
     YAML:                 0
