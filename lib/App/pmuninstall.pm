@@ -13,7 +13,7 @@ use Module::CoreList;
 use version;
 use HTTP::Tiny;
 
-our $VERSION = "0.19";
+our $VERSION = "0.20";
 
 my $perl_version = version->new($])->numify;
 my $depended_on_by = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
@@ -34,7 +34,7 @@ sub run {
     local @ARGV = @args;
     GetOptions(
         'f|force'                 => \$self->{force},
-        'v|verbose!'              => \$self->{verbose},
+        'v|verbose!'              => sub { ++$self->{verbose} },
         'c|checkdeps!'            => \$self->{check_deps},
         'n|no-checkdeps!'         => sub { $self->{check_deps} = 0 },
         'h|help!'                 => \$self->{help},
@@ -163,7 +163,7 @@ sub locate_pack {
     $dist =~ s!-!/!g;
     for my $lib (@{$self->{inc}}) {
         my $packlist = "$lib/auto/$dist/.packlist";
-        $self->puts("-> Finding .packlist $packlist") if $self->{verbose};
+        $self->puts("-> Finding .packlist $packlist") if $self->{verbose} > 1;
         return $packlist if -f $packlist && -r _;
     }
     return;
@@ -175,7 +175,8 @@ sub is_core_module {
 
     my $is_core = 0;
     for my $dir (@core_modules_dir) {
-        if ($packlist =~ /^$dir/) {
+        my $safe_dir = quotemeta $dir; # workaround for MSWin32
+        if ($packlist =~ /^$safe_dir/) {
             $is_core = 1;
             last;
         }
