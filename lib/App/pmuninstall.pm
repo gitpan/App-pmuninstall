@@ -13,7 +13,7 @@ use Module::CoreList;
 use version;
 use HTTP::Tiny;
 
-our $VERSION = "0.20";
+our $VERSION = "0.21";
 
 my $perl_version = version->new($])->numify;
 my $depended_on_by = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
@@ -21,11 +21,12 @@ my $cpanmetadb     = 'http://cpanmetadb.appspot.com/v1.0/package';
 my @core_modules_dir = do { my %h; grep !$h{$_}++, @Config{qw/archlib archlibexp privlib privlibexp/} };
 
 sub new {
-    my $class = shift;
+    my ($class, $inc) = @_;
+    $inc = [@INC] unless ref $inc eq 'ARRAY';
     bless {
         check_deps => 1,
         verbose    => 0,
-        inc        => [@INC],
+        inc        => $class->prepare_include_paths($inc),
     }, $class;
 }
 
@@ -37,6 +38,7 @@ sub run {
         'v|verbose!'              => sub { ++$self->{verbose} },
         'c|checkdeps!'            => \$self->{check_deps},
         'n|no-checkdeps!'         => sub { $self->{check_deps} = 0 },
+        'q|quiet!'                => \$self->{quiet},
         'h|help!'                 => \$self->{help},
         'V|version!'              => \$self->{version},
         'l|local-lib=s'           => \$self->{local_lib},
@@ -200,12 +202,13 @@ sub ask_permission {
         }
     }
 
-    $self->puts("$module is included in the distribution $dist and contains:\n");
+    $self->puts("$module is included in the distribution $dist and contains:\n")
+        unless $self->{quiet};
     for my $file ($self->fixup_packilist($packlist)) {
         chomp $file;
-        $self->puts("  $file");
+        $self->puts("  $file") unless $self->{quiet};
     }
-    $self->puts;
+    $self->puts unless $self->{quiet};
 
     my $default = 'y';
     if (@deps) {
@@ -310,6 +313,7 @@ Usage:
           -f,--force                    Uninstalls without prompts
           -c,--checkdeps                Check dependencies ( default on )
           -n,--no-checkdeps             Not check dependencies
+          -q,--quiet                    Suppress some messages
           -h,--help                     This help message
           -V,--version                  Show version
           -l,--local-lib                Additional module path
@@ -317,6 +321,18 @@ Usage:
 USAGE
 
     exit 1;
+}
+
+sub prepare_include_paths {
+    my ($class, $inc) = @_;
+    my $new_inc = [];
+    my $archname = quotemeta $Config{archname};
+    for my $path (@$inc) {
+        push @$new_inc, $path;
+        next if $path eq '.' or $path =~ /$archname/;
+        push @$new_inc, File::Spec->catdir($path, $Config{archname});
+    }
+    return [do { my %h; grep !$h{$_}++, @$new_inc }];
 }
 
 1;
@@ -366,6 +382,10 @@ Check dependencies ( default on )
 Not check dependencies
 
   $ pm-uninstall -n LWP
+
+=item -q, --quiet
+
+Suppress some messages
 
 =item -h, --help
 

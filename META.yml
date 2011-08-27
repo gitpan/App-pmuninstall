@@ -25,4 +25,4 @@ requires:
   Module::CoreList: 0
   YAML: 0
   version: 0
-version: 0.20
+version: 0.21
