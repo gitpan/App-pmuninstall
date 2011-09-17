@@ -2,23 +2,23 @@ package App::pmuninstall;
 use strict;
 use warnings;
 use File::Spec;
-use File::Basename qw/dirname/;
-use Getopt::Long qw/GetOptions :config bundling/;
-use Pod::Usage qw/pod2usage/;
+use File::Basename qw(dirname);
+use Getopt::Long qw(GetOptions :config bundling);
 use Config;
-use ExtUtils::MakeMaker;
-use YAML;
+use YAML ();
 use CPAN::DistnameInfo;
-use Module::CoreList;
 use version;
 use HTTP::Tiny;
+use Term::ANSIColor qw(colored);
 
-our $VERSION = "0.21";
+our $VERSION = "0.22";
 
-my $perl_version = version->new($])->numify;
-my $depended_on_by = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
-my $cpanmetadb     = 'http://cpanmetadb.appspot.com/v1.0/package';
+my $perl_version     = version->new($])->numify;
+my $depended_on_by   = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
+my $cpanmetadb       = 'http://cpanmetadb.appspot.com/v1.0/package';
 my @core_modules_dir = do { my %h; grep !$h{$_}++, @Config{qw/archlib archlibexp privlib privlibexp/} };
+
+$ENV{ANSI_COLORS_DISABLED} = 1 if $^O eq 'MSWin32';
 
 sub new {
     my ($class, $inc) = @_;
@@ -39,7 +39,7 @@ sub run {
         'c|checkdeps!'            => \$self->{check_deps},
         'n|no-checkdeps!'         => sub { $self->{check_deps} = 0 },
         'q|quiet!'                => \$self->{quiet},
-        'h|help!'                 => \$self->{help},
+        'h|help!'                 => sub { $self->usage },
         'V|version!'              => \$self->{version},
         'l|local-lib=s'           => \$self->{local_lib},
         'L|local-lib-contained=s' => sub {
@@ -47,7 +47,13 @@ sub run {
             $self->{self_contained} = 1;
         },
     ) or $self->usage;
-    $self->usage if $self->{help} || !scalar @ARGV;
+
+    if ($self->{version}) {
+        $self->puts("pm-uninstall (App::pmuninstall) version $App::pmuninstall::VERSION");
+        exit;
+    }
+
+    $self->short_usage unless @ARGV;
 
     $self->uninstall(@ARGV);
 }
@@ -59,34 +65,42 @@ sub uninstall {
 
     my $uninstalled = 0;
     for my $module (@modules) {
+        $self->puts("--> Working on $module") unless $self->{quiet};
         my ($packlist, $dist, $vname) = $self->find_packlist($module);
-        unless ($dist) {
-            $self->puts("$module is not found.");
-            next;
-        }
-        unless ($packlist) {
-            $self->puts("$module is not installed.");
-            next;
-        }
 
         $packlist = File::Spec->catfile($packlist);
         if ($self->is_core_module($module, $packlist)) {
-            $self->puts("$module is Core Module!! Can't be uninstall.");
+            $self->puts(colored ['red'], "! $module is Core Module!! Can't be uninstall.");
+            $self->puts unless $self->{quiet};
             next;
         }
-        
-        if ($self->{force} or $self->ask_permission($module, $dist, $vname, $packlist)) {
+
+        unless ($dist) {
+            $self->puts(colored ['red'], "! $module is not found.");
+            $self->puts unless $self->{quiet};
+            next;
+        }
+
+        unless ($packlist) {
+            $self->puts(colored ['red'], "! $module is not installed.");
+            $self->puts unless $self->{quiet};
+            next;
+        }
+
+        if ($self->ask_permission($module, $dist, $vname, $packlist)) {
             if ($self->uninstall_from_packlist($packlist)) {
-                $self->puts("$module is successfully uninstalled.\n");
+                $self->puts(colored ['green'], "Successfully uninstalled $module");
                 ++$uninstalled;
             }
             else {
-                $self->puts("! $module is failed uninstall.");
+                $self->puts(colored ['red'], "! Failed uninstall $module");
             }
+            $self->puts unless $self->{quiet};
         }
     }
 
     if ($uninstalled) {
+        $self->puts if $self->{quiet};
         $self->puts("You may want to rebuild man(1) entires. Try `mandb -c` if needed");
     }
 
@@ -111,8 +125,7 @@ sub uninstall_from_packlist {
     unlink $packlist or $self->puts("$packlist: $!") and $failed++;
     $self->rm_empty_dir_from_file($packlist, $inc);
 
-    $self->puts if $self->{verbose};
-
+    $self->puts unless $self->{quiet} || $self->{force};
     return !$failed;
 }
 
@@ -146,8 +159,10 @@ sub find_packlist {
 
     # find with the given name first
     (my $try_dist = $module) =~ s!::!-!g;
-    my $pl = $self->locate_pack($try_dist);
-    return ($pl, $try_dist) if $pl;
+    if (my $pl = $self->locate_pack($try_dist)) {
+        $self->puts("-> Found $pl") if $self->{verbose};
+        return ($pl, $try_dist);
+    }
 
     $self->puts("Looking up $module on cpanmetadb") if $self->{verbose};
 
@@ -156,8 +171,10 @@ sub find_packlist {
     my $meta = YAML::Load($yaml);
     my $info = CPAN::DistnameInfo->new($meta->{distfile});
 
-    my $pl2 = $self->locate_pack($info->dist);
-    return ($pl2, $info->dist, $info->distvname);
+    if (my $pl = $self->locate_pack($info->dist)) {
+        $self->puts("-> Found $pl") if $self->{verbose};
+        return ($pl, $info->dist, $info->distvname);
+    }
 }
 
 sub locate_pack {
@@ -173,7 +190,9 @@ sub locate_pack {
 
 sub is_core_module {
     my ($self, $dist, $packlist) = @_;
+    require Module::CoreList;
     return unless exists $Module::CoreList::version{$perl_version}{$dist};
+    return 1 unless $packlist;
 
     my $is_core = 0;
     for my $dir (@core_modules_dir) {
@@ -190,18 +209,19 @@ sub ask_permission {
     my($self, $module, $dist, $vname, $packlist) = @_;
 
     my(@deps, %seen);
-    if ($self->{check_deps}) {
+    if ($self->{check_deps} && !$self->{force}) {
         $vname ||= $self->vname_for($module) || $module;
         $self->puts("Checking modules depending on $vname") if $self->{verbose};
-        $self->puts("-> Getting from $depended_on_by$vname") if $self->{verbose};
         my $content = $self->fetch("$depended_on_by$vname") || '';
         for my $dep ($content =~ m|<li><a href=[^>]+>([a-zA-Z0-9_:-]+)|smg) {
             $dep =~ s/^\s+|\s+$//smg; # trim
             next if $seen{$dep}++;
+            $self->puts("Finding $dep in your \@INC (dependent module)") if $self->{verbose};
             push @deps, $dep if $self->locate_pack($dep);
         }
     }
 
+    $self->puts if $self->{verbose};
     $self->puts("$module is included in the distribution $dist and contains:\n")
         unless $self->{quiet};
     for my $file ($self->fixup_packilist($packlist)) {
@@ -209,6 +229,8 @@ sub ask_permission {
         $self->puts("  $file") unless $self->{quiet};
     }
     $self->puts unless $self->{quiet};
+
+    return 'force uninstall' if $self->{force};
 
     my $default = 'y';
     if (@deps) {
@@ -219,7 +241,14 @@ sub ask_permission {
         $self->puts;
         $default = 'n';
     }
-    return lc(prompt("Are you sure to uninstall $dist?", $default)) eq 'y';
+
+    return lc($self->prompt("Are you sure to uninstall $dist?", $default)) eq 'y';
+}
+
+sub prompt {
+    my ($self, $msg, $default) = @_;
+    require ExtUtils::MakeMaker;
+    ExtUtils::MakeMaker::prompt($msg, $default);
 }
 
 sub fixup_packilist {
@@ -249,6 +278,7 @@ sub is_local_lib {
 sub vname_for {
     my ($self, $module) = @_;
 
+    $self->puts("Fetching $module vname on cpanmetadb") if $self->{verbose};
     my $yaml = $self->fetch("$cpanmetadb/$module") or return;
     my $meta = YAML::Load($yaml);
     my $info = CPAN::DistnameInfo->new($meta->{distfile}) or return;
@@ -291,6 +321,7 @@ sub install_base_arch_path {
 
 sub fetch {
     my ($self, $url) = @_;
+    $self->puts("-> Getting from $url") if $self->{verbose};
     my $res = HTTP::Tiny->new->get($url);
     die "[$res->{status}] fetch $url failed!!\n" if !$res->{success} && $res->{status} != 404;
     return $res->{content};
@@ -306,7 +337,7 @@ sub usage {
     my $self = shift;
     $self->puts(<< 'USAGE');
 Usage:
-      pm-uninstall [options] Module ...
+      pm-uninstall [options] Module [...]
 
       options:
           -v,--verbose                  Turns on chatty output
@@ -318,6 +349,17 @@ Usage:
           -V,--version                  Show version
           -l,--local-lib                Additional module path
           -L,--local-lib-contained      Additional module path (don't include non-core modules)
+USAGE
+
+    exit 1;
+}
+
+sub short_usage {
+    my $self = shift;
+    $self->puts(<< 'USAGE');
+Usage: pm-uninstall [options] Module [...]
+
+Try `pm-uninstall --help` or `man pm-uninstall` for more options.
 USAGE
 
     exit 1;
@@ -347,7 +389,7 @@ App::pmuninstall - Uninstall modules
 App::pmuninstall is Fast module uninstaller.
 delete files from B<.packlist>.
 
-App:: cpanminus and, App:: cpanoutdated with a high affinity.
+C<App:: cpanminus> and, C<App:: cpanoutdated> with a high affinity.
 
 =head1 SYNOPSIS
 
@@ -386,6 +428,8 @@ Not check dependencies
 =item -q, --quiet
 
 Suppress some messages
+
+  $ pm-uninstall -q Furl
 
 =item -h, --help
 

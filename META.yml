@@ -20,9 +20,9 @@ no_index:
 requires:
   CPAN::DistnameInfo: 0
   ExtUtils::Install: 1.43
-  ExtUtils::MakeMaker: 6.31
+  ExtUtils::MakeMaker: 6.3
   HTTP::Tiny: 0.012
   Module::CoreList: 0
   YAML: 0
   version: 0
-version: 0.21
+version: 0.22
