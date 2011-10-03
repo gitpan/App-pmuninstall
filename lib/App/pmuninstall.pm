@@ -11,7 +11,7 @@ use version;
 use HTTP::Tiny;
 use Term::ANSIColor qw(colored);
 
-our $VERSION = "0.22";
+our $VERSION = "0.23";
 
 my $perl_version     = version->new($])->numify;
 my $depended_on_by   = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
@@ -19,6 +19,8 @@ my $cpanmetadb       = 'http://cpanmetadb.appspot.com/v1.0/package';
 my @core_modules_dir = do { my %h; grep !$h{$_}++, @Config{qw/archlib archlibexp privlib privlibexp/} };
 
 $ENV{ANSI_COLORS_DISABLED} = 1 if $^O eq 'MSWin32';
+
+our $OUTPUT_INDENT_LEVEL = 0;
 
 sub new {
     my ($class, $inc) = @_;
@@ -115,7 +117,7 @@ sub uninstall_from_packlist {
     };
 
     my $failed;
-    for my $file ($self->fixup_packilist($packlist)) {
+    for my $file ($self->fixup_packlist($packlist)) {
         chomp $file;
         $self->puts(-f $file ? 'unlink   ' : 'not found', " : $file") if $self->{verbose};
         unlink $file or $self->puts("$file: $!") and $failed++;
@@ -216,7 +218,8 @@ sub ask_permission {
         for my $dep ($content =~ m|<li><a href=[^>]+>([a-zA-Z0-9_:-]+)|smg) {
             $dep =~ s/^\s+|\s+$//smg; # trim
             next if $seen{$dep}++;
-            $self->puts("Finding $dep in your \@INC (dependent module)") if $self->{verbose};
+            local $OUTPUT_INDENT_LEVEL = $OUTPUT_INDENT_LEVEL + 1;
+            $self->puts("Finding $dep in your \@INC (dependencies)") if $self->{verbose};
             push @deps, $dep if $self->locate_pack($dep);
         }
     }
@@ -224,7 +227,7 @@ sub ask_permission {
     $self->puts if $self->{verbose};
     $self->puts("$module is included in the distribution $dist and contains:\n")
         unless $self->{quiet};
-    for my $file ($self->fixup_packilist($packlist)) {
+    for my $file ($self->fixup_packlist($packlist)) {
         chomp $file;
         $self->puts("  $file") unless $self->{quiet};
     }
@@ -251,7 +254,7 @@ sub prompt {
     ExtUtils::MakeMaker::prompt($msg, $default);
 }
 
-sub fixup_packilist {
+sub fixup_packlist {
     my ($self, $packlist) = @_;
     my @target_list;
     my $is_local_lib = $self->is_local_lib($packlist);
@@ -267,7 +270,7 @@ sub fixup_packilist {
 
 sub is_local_lib {
     my ($self, $file) = @_;
-    return unless exists $INC{'local/lib.pm'};
+    return unless $self->{local_lib};
 
     my $local_lib_base = quotemeta File::Spec->catfile(Cwd::realpath($self->{local_lib}));
     $file = File::Spec->catfile($file);
@@ -291,6 +294,12 @@ sub setup_local_lib {
     my $self = shift;
     return unless $self->{local_lib};
 
+    unless (-d $self->{local_lib}) {
+        $self->puts(colored ['red'], "! $self->{local_lib} is no such directory");
+        exit 1;
+    }
+
+    require Cwd;
     local $SIG{__WARN__} = sub { }; # catch 'Attempting to write ...'
     $self->{inc} = [
         map { Cwd::realpath($_) }
@@ -330,6 +339,7 @@ sub fetch {
 sub puts {
     my ($self, @msg) = @_;
     push @msg, '' unless @msg;
+    print '  ' x $OUTPUT_INDENT_LEVEL if $OUTPUT_INDENT_LEVEL;
     print @msg, "\n";
 }
 
@@ -389,7 +399,7 @@ App::pmuninstall - Uninstall modules
 App::pmuninstall is Fast module uninstaller.
 delete files from B<.packlist>.
 
-C<App:: cpanminus> and, C<App:: cpanoutdated> with a high affinity.
+L<App::cpanminus> and, L<App::cpanoutdated> with a high affinity.
 
 =head1 SYNOPSIS
 
