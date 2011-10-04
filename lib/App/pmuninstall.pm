@@ -10,8 +10,9 @@ use CPAN::DistnameInfo;
 use version;
 use HTTP::Tiny;
 use Term::ANSIColor qw(colored);
+use Cwd ();
 
-our $VERSION = "0.23";
+our $VERSION = "0.24";
 
 my $perl_version     = version->new($])->numify;
 my $depended_on_by   = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
@@ -299,7 +300,6 @@ sub setup_local_lib {
         exit 1;
     }
 
-    require Cwd;
     local $SIG{__WARN__} = sub { }; # catch 'Attempting to write ...'
     $self->{inc} = [
         map { Cwd::realpath($_) }
