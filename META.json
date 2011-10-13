@@ -4,7 +4,7 @@
       "unknown"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.59, CPAN::Meta::Converter version 2.112600",
+   "generated_by" : "ExtUtils::MakeMaker version 6.59, CPAN::Meta::Converter version 2.112621",
    "license" : [
       "perl_5"
    ],
@@ -36,6 +36,7 @@
             "ExtUtils::Install" : "1.43",
             "ExtUtils::MakeMaker" : "6.3",
             "HTTP::Tiny" : "0.012",
+            "JSON::PP" : 0,
             "Module::CoreList" : 0,
             "YAML" : 0,
             "version" : 0
@@ -43,5 +44,5 @@
       }
    },
    "release_status" : "stable",
-   "version" : "0.24"
+   "version" : "0.25"
 }

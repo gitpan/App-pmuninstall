@@ -11,8 +11,9 @@ use version;
 use HTTP::Tiny;
 use Term::ANSIColor qw(colored);
 use Cwd ();
+use JSON::PP qw(decode_json);
 
-our $VERSION = "0.24";
+our $VERSION = "0.25";
 
 my $perl_version     = version->new($])->numify;
 my $depended_on_by   = 'http://deps.cpantesters.org/depended-on-by.pl?dist=';
@@ -128,6 +129,12 @@ sub uninstall_from_packlist {
     unlink $packlist or $self->puts("$packlist: $!") and $failed++;
     $self->rm_empty_dir_from_file($packlist, $inc);
 
+    if (my $install_json = $self->{install_json}) {
+        $self->puts("unlink    : $install_json") if $self->{verbose};
+        unlink $install_json or $self->puts("$install_json: $!") and $failed++;
+        $self->rm_empty_dir_from_file($install_json);
+    }
+
     $self->puts unless $self->{quiet} || $self->{force};
     return !$failed;
 }
@@ -174,10 +181,28 @@ sub find_packlist {
     my $meta = YAML::Load($yaml);
     my $info = CPAN::DistnameInfo->new($meta->{distfile});
 
-    if (my $pl = $self->locate_pack($info->dist)) {
+    my $name = $self->find_meta($info->distvname) || $info->dist;
+    if (my $pl = $self->locate_pack($name)) {
         $self->puts("-> Found $pl") if $self->{verbose};
         return ($pl, $info->dist, $info->distvname);
     }
+}
+
+sub find_meta {
+    my ($self, $distvname) = @_;
+
+    my $name;
+    for my $lib (@{$self->{inc}}) {
+        next unless $lib =~ /$Config{archname}/;
+        my $install_json = "$lib/.meta/$distvname/install.json";
+        next unless -f $install_json && -r _;
+        my $data = decode_json +$self->slurp($install_json);
+        $name = $data->{name} || next;
+        $self->puts("-> Found $install_json") if $self->{verbose};
+        $self->{meta} = $install_json;
+        last;
+    }
+    return $name;
 }
 
 sub locate_pack {
@@ -334,6 +359,12 @@ sub fetch {
     my $res = HTTP::Tiny->new->get($url);
     die "[$res->{status}] fetch $url failed!!\n" if !$res->{success} && $res->{status} != 404;
     return $res->{content};
+}
+
+sub slurp {
+    my ($self, $file) = @_;
+    open my $fh, '<', $file or die "$file $!";
+    do { local $/; <$fh> };
 }
 
 sub puts {
