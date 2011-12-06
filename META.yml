@@ -22,8 +22,8 @@ requires:
   ExtUtils::Install: 1.43
   ExtUtils::MakeMaker: 6.3
   HTTP::Tiny: 0.012
-  JSON::PP: 0
+  JSON::PP: 2.01
   Module::CoreList: 0
   YAML: 0
   version: 0
-version: 0.27
+version: 0.28
