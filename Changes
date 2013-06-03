@@ -1,5 +1,8 @@
 Revision history for Perl extension App::pmuninstall
 
+0.30 2013-06-03T14:42:38Z
+        - minil migrate
+
 0.29    Wed Feb  8 17:23:05 2012
         - Copy and wording fixes (finn++)
 
